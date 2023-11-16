@@ -6,7 +6,7 @@
 /*   By: kiroussa <oss@xtrm.me>                     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/11/15 02:59:05 by kiroussa          #+#    #+#             */
-/*   Updated: 2023/11/16 04:22:11 by kiroussa         ###   ########.fr       */
+/*   Updated: 2023/11/16 04:40:20 by kiroussa         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -40,7 +40,7 @@ static int	try_fill_buffer(int fd, t_gnl *gnl)
 	read_buffer = ft_calloc(BUFFER_SIZE + 1, sizeof(char));
 	if (!read_buffer)
 		return (0);
-	read_bytes = 0;
+	read_bytes = -2;
 	while (!gnl->inner || !ft_strchr(gnl->inner, '\n'))
 	{
 		read_bytes = read(fd, read_buffer, BUFFER_SIZE);
@@ -52,7 +52,7 @@ static int	try_fill_buffer(int fd, t_gnl *gnl)
 	free(read_buffer);
 	if (read_bytes >= 0 && read_bytes != BUFFER_SIZE)
 		gnl->finished = 1;
-	return (read_bytes >= 0);
+	return (read_bytes == -2 || read_bytes >= 0);
 }
 
 static char	*get_current_buffer(t_gnl *gnl)
