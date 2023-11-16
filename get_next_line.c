@@ -5,116 +5,125 @@
 /*                                                    +:+ +:+         +:+     */
 /*   By: kiroussa <oss@xtrm.me>                     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2023/08/15 05:42:15 by kiroussa          #+#    #+#             */
-/*   Updated: 2023/08/18 21:45:19 by kiroussa         ###   ########.fr       */
+/*   Created: 2023/11/15 02:59:05 by kiroussa          #+#    #+#             */
+/*   Updated: 2023/11/16 04:15:39 by kiroussa         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "get_next_line.h"
 
-static int	gnl_next_line_length(t_gnl *gnl)
-{
-	int	i;
+/* For main */
+#ifdef MAIN
+# include <fcntl.h>
+# include <stdio.h>
+#endif
 
-	i = -1;
-	if (!gnl->buffer)
-		return (-1);
-	if (gnl->buffer_size == 0)
+static int	handle_read(t_gnl *gnl, char *read_buffer, ssize_t read_bytes)
+{
+	char	*tmp;
+
+	tmp = gnl->inner;
+	gnl->inner = ft_calloc(gnl->size + read_bytes + 1, sizeof(char));
+	if (!gnl->inner)
+		free(tmp);
+	if (!gnl->inner)
 		return (0);
-	while (++i < (int)gnl->buffer_size)
-		if (gnl->buffer[i] == '\n')
-			return (i + 1);
-	return (-1);
+	ft_memcpy(gnl->inner, tmp, gnl->size);
+	ft_memcpy(gnl->inner + gnl->size, read_buffer, read_bytes);
+	gnl->size += read_bytes;
+	gnl->inner[gnl->size] = '\0';
+	free(tmp);
+	return (1);
 }
 
-static void	gnl_read(t_gnl *gnl)
+static int	try_fill_buffer(int fd, t_gnl *gnl)
 {
-	int		i;
-	char	*buffer;
+	ssize_t	read_bytes;
+	char	*read_buffer;
 
-	buffer = malloc(sizeof(char) * BUFFER_SIZE);
-	gnl->last_read = read(gnl->fd, buffer, BUFFER_SIZE);
-	if (gnl->last_read > 0)
+	if (gnl->finished)
+		return (1);
+	read_buffer = ft_calloc(BUFFER_SIZE + 1, sizeof(char));
+	if (!read_buffer)
+		return (0);
+	read_bytes = 0;
+	while (!gnl->inner || !ft_strchr(gnl->inner, '\n'))
 	{
-		gnl->buffer = ft_realloc(gnl->buffer, gnl->buffer_size,
-				gnl->buffer_size + gnl->last_read);
-		if (!gnl->buffer)
-			free(buffer);
-		if (!gnl->buffer)
-			return ;
-		i = -1;
-		while (++i < gnl->last_read)
-			gnl->buffer[i + gnl->buffer_size] = buffer[i];
-		free(buffer);
-		gnl->buffer_size += gnl->last_read;
-		if (gnl_next_line_length(gnl) == -1)
-			gnl_read(gnl);
+		read_bytes = read(fd, read_buffer, BUFFER_SIZE);
+		if (read_bytes <= 0)
+			break ;
+		if (!handle_read(gnl, read_buffer, read_bytes))
+			return (0);
 	}
-	else
-		free(buffer);
-	if (gnl->last_read < 0)
-		free(gnl->buffer);
+	free(read_buffer);
+	if (read_bytes >= 0 && read_bytes != BUFFER_SIZE)
+		gnl->finished = 1;
+	return (read_bytes >= 0);
 }
 
-static void	gnl_shrink_buffer(t_gnl *gnl, size_t n)
+static char	*get_current_buffer(t_gnl *gnl)
 {
-	char	*new_buffer;
-	int		index;
-
-	new_buffer = malloc(sizeof(char) * (gnl->buffer_size - n));
-	if (!new_buffer)
-		return ;
-	gnl->buffer_size -= n;
-	index = -1;
-	while (++index < gnl->buffer_size)
-		new_buffer[index] = gnl->buffer[index + n];
-	free(gnl->buffer);
-	gnl->buffer = new_buffer;
-}
-
-static char	*gnl_dup_line(t_gnl *gnl)
-{
-	int		size;
 	char	*line;
-	int		eof;
 
-	size = gnl_next_line_length(gnl);
-	eof = (gnl->last_read < BUFFER_SIZE);
-	if (size == -1 && !eof)
+	if (!gnl->inner)
 		return (NULL);
-	if (size == -1)
-		size = gnl->buffer_size;
-	line = malloc(sizeof(char) * (size + 1));
+	line = ft_calloc(gnl->size + 1, sizeof(char));
 	if (!line)
 		return (NULL);
-	line[size] = '\0';
-	while (--size >= 0)
-		line[size] = gnl->buffer[size];
-	if (eof)
-		gnl_shrink_buffer(gnl, gnl->buffer_size);
-	else
-		gnl_shrink_buffer(gnl, gnl_next_line_length(gnl));
+	ft_memcpy(line, gnl->inner, gnl->size);
+	line[gnl->size] = '\0';
+	free(gnl->inner);
+	gnl->inner = NULL;
+	return (line);
+}
+
+static char	*get_line(t_gnl *gnl)
+{
+	char	*line;
+	char	*tmp;
+	size_t	line_len;
+
+	if (!gnl->inner)
+		return (NULL);
+	if (!ft_strchr(gnl->inner, '\n'))
+		return (get_current_buffer(gnl));
+	line_len = ft_strchr(gnl->inner, '\n') - gnl->inner + 1;
+	line = ft_calloc(line_len + 1, sizeof(char));
+	if (!line)
+		return (NULL);
+	ft_memcpy(line, gnl->inner, line_len);
+	tmp = gnl->inner;
+	gnl->inner = ft_calloc(gnl->size - line_len + 1, sizeof(char));
+	if (!gnl->inner)
+	{
+		free(line);
+		free(tmp);
+		return (NULL);
+	}
+	ft_memcpy(gnl->inner, tmp + line_len, gnl->size - line_len);
+	gnl->size -= line_len;
+	free(tmp);
 	return (line);
 }
 
 char	*get_next_line(int fd)
 {
-	static t_gnl	gnl = {-1, -1, -1, NULL};
+	static t_gnl	gnl = {NULL, 0, 0};
+	char			*line;
 
-	if (fd < 0 || fd > FOPEN_MAX || BUFFER_SIZE <= 0)
+	if (fd < 0 || fd >= 1024 || BUFFER_SIZE <= 0)
 		return (NULL);
-	if (gnl.fd != fd || !gnl.buffer)
+	if (!try_fill_buffer(fd, &gnl))
 	{
-		gnl.fd = fd;
-		if (gnl.buffer)
-			free(gnl.buffer);
-		gnl.buffer_size = 0;
-	}
-	gnl_read(&gnl);
-	if (gnl.buffer_size == 0)
-	{
-		gnl.fd = -1;
+		free(gnl.inner);
+		gnl.inner = NULL;
 		return (NULL);
 	}
-	return (gnl_dup_line(&gnl));
+	line = get_line(&gnl);
+	if ((!line || gnl.size == 0) && gnl.inner)
+	{
+		free(gnl.inner);
+		gnl.inner = NULL;
+	}
+	return (line);
 }
