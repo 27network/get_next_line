@@ -6,17 +6,11 @@
 /*   By: kiroussa <oss@xtrm.me>                     +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2023/11/15 02:59:05 by kiroussa          #+#    #+#             */
-/*   Updated: 2023/11/16 04:15:39 by kiroussa         ###   ########.fr       */
+/*   Updated: 2023/11/16 04:22:11 by kiroussa         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "get_next_line.h"
-
-/* For main */
-#ifdef MAIN
-# include <fcntl.h>
-# include <stdio.h>
-#endif
 
 static int	handle_read(t_gnl *gnl, char *read_buffer, ssize_t read_bytes)
 {
